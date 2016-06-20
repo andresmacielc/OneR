@@ -1,0 +1,17 @@
+083e158ef3d92ed47118ba704374ffba *DESCRIPTION
+c298e145604ca6300a564cf6cd43ae03 *LICENSE
+1cca8468525c7ea14f4a9bc62cb7b88c *NAMESPACE
+ed0dcb6f78015d66ad85c83d49da7350 *R/OneR.R
+c5af93add9594f6c77a16d428e4ff135 *R/OneR_internal.R
+b5a22dd486170274e5562011cd7f6839 *R/OneR_main.R
+d403d2610ea52f0c07624182f814afe8 *README.md
+d62aac2a71147dd532178af7f75da320 *man/OneR.Rd
+f1a12c123221c3ac03ae3736515d3eaa *man/bin.Rd
+3cb1e9cf028023c5571fcddb98d75c80 *man/eval_model.Rd
+474437c7ce678a27f9f3bbbc42ce8e5e *man/is.OneR.Rd
+ec8e670e9624d6f7829f9b6c8e1d0911 *man/maxlevels.Rd
+329f49057282830a0cbd0a7d942f027f *man/optbin.Rd
+49aa4e8dccb6beffd3e615f4779a7441 *man/plot.OneR.Rd
+17987ad4a13a7f392fdc78b8a70ddc96 *man/predict.OneR.Rd
+2b3cce7ad5f62291ee1964441280df28 *man/print.OneR.Rd
+30dc5b800609f9873e6e3bf8512b420f *man/summary.OneR.Rd
