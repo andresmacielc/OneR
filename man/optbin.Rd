@@ -14,7 +14,10 @@ optbin(data, formula = NULL, method = c("logreg", "naive"),
 
 \item{method}{a character string specifying the method for optimal binning, see 'Details'; can be abbreviated.}
 
-\item{na.omit}{boolean value whether instances with missing values should be removed.}
+\item{na.omit}{logical value whether instances with missing values should be removed.}
+}
+\value{
+A dataframe with the target variable being in the last column.
 }
 \description{
 Discretizes all numerical data in a dataframe into categorical bins where the cut points are optimally aligned with the target categories, thereby a factor is returned.
@@ -27,7 +30,7 @@ although in this case \code{"logreg"} should give comparable results, so it is t
 
 Character strings and logical strings are coerced into factors. Matrices are coerced into dataframes. If the target is numeric it is turned into a factor with the number of levels equal to the number of values. Additionally a warning is given.
 
-When \code{"na.omit = FALSE"} a new level \code{"NA"} is introduced into each factor.
+When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
 }
 \examples{
 data <- iris # without optimal binning

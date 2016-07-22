@@ -2,17 +2,19 @@
 
 #' Binning function
 #'
-#' Discretizes all numerical data in a dataframe into categorical bins of equal length or content.
+#' Discretizes all numerical data in a dataframe into categorical bins of equal length or content or based on automatically determined clusters.
 #' @param data dataframe which contains the data.
 #' @param nbins number of bins (= levels).
 #' @param labels character vector of labels for the resulting category.
 #' @param method a character string specifying the binning method, see 'Details'; can be abbreviated.
-#' @param na.omit boolean value whether instances with missing values should be removed.
-#' @keywords binning discretization discretize
+#' @param na.omit logical value whether instances with missing values should be removed.
+#' @return A dataframe or vector.
+#' @keywords binning discretization discretize clusters Jenks breaks
 #' @details Character strings and logical strings are coerced into factors. Matrices are coerced into dataframes. When called with a single vector only the respective factor (and not a dataframe) is returned.
 #' Method \code{"length"} gives intervals of equal length, method \code{"content"} gives intervals of equal content (via quantiles).
+#' Method \code{"clusters"} determins \code{"nbins"} clusters via 1D kmeans with deterministic seeding of the initial cluster centres (Jenks natural breaks optimization).
 #'
-#' When \code{"na.omit = FALSE"} a new level \code{"NA"} is introduced into each factor.
+#' When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
 #' @author Holger von Jouanne-Diedrich
 #' @references \url{http://vonjd.github.io/OneR/}
 #' @seealso \code{\link{OneR}}, \code{\link{optbin}}
@@ -26,9 +28,19 @@
 #' ## Difference between methods "length" and "content"
 #' set.seed(1); table(bin(rnorm(900), nbins = 3))
 #' set.seed(1); table(bin(rnorm(900), nbins = 3, method = "content"))
+#'
+#' ## Method "clusters"
+#' intervals <- paste(levels(bin(faithful$waiting, nbins = 2, method = "cluster")), collapse = " ")
+#' hist(faithful$waiting, main = paste("Intervals:", intervals))
+#' abline(v = c(42.9, 67.5, 96.1), col = "blue")
+#'
+#' ## Missing values
+#' bin(c(1:10, NA), nbins = 2, na.omit = FALSE) # adds new level "NA"
+#' bin(c(1:10, NA), nbins = 2)                  # omits missing values by default (with warning)
 #' @importFrom stats quantile
+#' @importFrom stats kmeans
 #' @export
-bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content"), na.omit = TRUE) {
+bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content", "clusters"), na.omit = TRUE) {
   method <- match.arg(method)
   vec <- FALSE
   if (is.atomic(data) == TRUE & is.null(dim(data)) == TRUE) { vec <- TRUE; data <- data.frame(data) }
@@ -44,7 +56,11 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content"),
   data[] <- lapply(data, function(x) if (is.numeric(x) ) {
     if (length(unique(x)) <= nbins) as.factor(x)
     else {
-      if (method == "content") nbins <- c(min(x) - 1/1000 * diff(range(x)), na.omit(quantile(x, (1:(nbins-1)/nbins))), max(x) + 1/1000 * diff(range(x)))
+      if (method == "content") nbins <- add_range(x, na.omit(quantile(x, (1:(nbins-1)/nbins), na.rm = TRUE)))
+      if (method == "clusters") {
+        midpoints <- sort(kmeans(na.omit(x), centers = seq(min(x, na.rm = TRUE), max(x, na.rm = TRUE), length = nbins))$centers)
+        nbins <- add_range(x, na.omit(filter(midpoints, c(1/2, 1/2))))
+      }
       CUT(x, breaks = unique(nbins), labels = labels)
     }
   } else as.factor(x))
@@ -63,7 +79,8 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content"),
 #' @param data dataframe which contains the data. When \code{formula = NULL} (the default) the last column must be the target variable.
 #' @param formula formula interface for the \code{optbin} function.
 #' @param method a character string specifying the method for optimal binning, see 'Details'; can be abbreviated.
-#' @param na.omit boolean value whether instances with missing values should be removed.
+#' @param na.omit logical value whether instances with missing values should be removed.
+#' @return A dataframe with the target variable being in the last column.
 #' @keywords binning discretization discretize
 #' @details The cutpoints are calculated by pairwise logistic regressions (method \code{"logreg"}) or as the means of the expected values of the respective classes (\code{"naive"}).
 #' The function is likely to give unsatisfactory results when the distributions of the respective classes are not (linearly) separable. Method \code{"naive"} should only be used when distributions are (approximately) normal,
@@ -71,7 +88,7 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content"),
 #'
 #' Character strings and logical strings are coerced into factors. Matrices are coerced into dataframes. If the target is numeric it is turned into a factor with the number of levels equal to the number of values. Additionally a warning is given.
 #'
-#' When \code{"na.omit = FALSE"} a new level \code{"NA"} is introduced into each factor.
+#' When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
 #' @author Holger von Jouanne-Diedrich
 #' @references \url{http://vonjd.github.io/OneR/}
 #' @seealso \code{\link{OneR}}, \code{\link{bin}}
@@ -128,7 +145,8 @@ optbin <- function(data, formula = NULL, method = c("logreg", "naive"), na.omit 
 #' Removes all columns of a dataframe where a factor (or character string) has more than a maximum number of levels.
 #' @param data dataframe which contains the data.
 #' @param maxlevels number of maximum factor levels.
-#' @param na.omit boolean value whether missing values should be treated as a level, defaults to omit missing values before counting.
+#' @param na.omit logical value whether missing values should be treated as a level, defaults to omit missing values before counting.
+#' @return A dataframe.
 #' @details Often categories that have very many levels are not useful in modelling OneR rules because they result in too many rules and tend to overfit.
 #' Examples are IDs or names.
 #'
@@ -156,6 +174,7 @@ maxlevels <- function(data, maxlevels = 20, na.omit = TRUE) {
 #' @param object object of class \code{"OneR"}.
 #' @param newdata dataframe in which to look for the feature variable with which to predict.
 #' @param ... further arguments passed to or from other methods.
+#' @return A named vector.
 #' @details \code{newdata} can have the same format as used for building the model but must at least have the feature variable that is used in the OneR rules.
 #' If cases appear that were not present when building the model the predicted value is \code{UNSEEN}.
 #' @author Holger von Jouanne-Diedrich
@@ -174,7 +193,7 @@ predict.OneR <- function(object, newdata, ...) {
   index <- which(names(data) == model$feature)[1]
   if (is.numeric(data[ , index])) {
     levels <- names(model$rules)
-    if (grepl(",", levels[1]) == TRUE) {
+    if (substring(levels[1], 1, 1) == "(" & grepl(",", levels[1]) == TRUE & substring(levels[1], nchar(levels[1]), nchar(levels[1])) == "]") {
       features <- as.character(cut(unlist(data[ , index]), breaks = get_breaks(levels)))
     } else features <- as.character(data[ , index])
   } else features <- as.character(data[ , index])
@@ -242,8 +261,10 @@ summary.OneR <- function(object, ...) {
 #' @export
 print.OneR <- function(x, ...) {
   model <- x
-  longest <- max(nchar(names(model$rules)))
+  cat("\nCall:\n")
+  print(model$call)
   cat("\nRules:\n")
+  longest <- max(nchar(names(model$rules)))
   for (iter in 1:length(model$rules)) {
     len <- longest - nchar(names(model$rules[iter]))
     cat("If ", model$feature, " = ", names(model$rules[iter]), rep(" ", len)," then ", model$target, " = ", model$rules[[iter]], "\n", sep = "")
@@ -277,6 +298,7 @@ plot.OneR <- function(x, ...) {
 #'
 #' Test if object is a OneR model.
 #' @param x object to be tested.
+#' @return a logical whether object is of class "OneR".
 #' @keywords OneR model
 #' @author Holger von Jouanne-Diedrich
 #' @references \url{http://vonjd.github.io/OneR/}
@@ -291,7 +313,7 @@ is.OneR <- function(x) inherits(x, "OneR")
 #' Function for evaluating a OneR classification model. Prints prediction vs. actual in absolute and relative numbers. Additionally it gives the accuracy and error rate.
 #' @param prediction vector which contains the predicted values.
 #' @param actual dataframe which contains the actual data. When there is more than one column the last last column is taken. A single vector is allowed too.
-#' @details Invisibly returns a list with the number of correctly classified and total instances and a contingency table with the absolute numbers.
+#' @return Invisibly returns a list with the number of correctly classified and total instances and a confusion matrix with the absolute numbers.
 #' @author Holger von Jouanne-Diedrich
 #' @references \url{http://vonjd.github.io/OneR/}
 #' @keywords evaluation accuracy
@@ -304,19 +326,20 @@ is.OneR <- function(x) inherits(x, "OneR")
 #' @importFrom stats addmargins
 #' @export
 eval_model <- function(prediction, actual) {
-  data <- actual
-  if (is.list(data) == FALSE) data <- data.frame(data)
-  if (typeof(as.vector(data[ , ncol(data)])) != typeof(prediction)) warning("data types of prediction and actual are different")
-  cont <- table(prediction, data[ , ncol(data)])
-  cont.m <- addmargins(cont)
-  cat("\n", rep(" ", 11), "actual", sep = "")
-  print(cont.m)
-  cont.p <- prop.table(table(prediction, data[ , ncol(data)]))
-  cont.pm <- round(addmargins(cont.p), 2)
-  cat("\n", rep(" ", 11), "actual", sep = "")
-  print(cont.pm)
-  sum.cont.adj <- sum(cont[colnames(cont)[col(cont)] == rownames(cont)[row(cont)]])
-  cat("\nAccuracy:\n", round(sum.cont.adj / sum(cont), 4), " (", sum.cont.adj, "/", sum(cont), ")", sep = "")
-  cat("\n\nError rate:\n", round(1 - sum.cont.adj / sum(cont), 4), " (", sum(cont) - sum.cont.adj, "/", sum(cont), ")\n\n", sep = "")
-  return(invisible(list(correct_instances = sum.cont.adj, total_instances = sum(cont), cont_table = cont)))
+  if (is.list(actual) == FALSE) actual <- data.frame(actual)
+  actual <- actual[ , ncol(actual)]
+  if (any(is.na(actual))) warning("actual contains missing values, results may be false")
+  if (typeof(as.vector(actual)) != typeof(prediction)) warning("data types of prediction and actual are different")
+  conf <- table(prediction, actual)
+  conf.m <- addmargins(conf)
+  cat("\nConfusion matrix (absolute):\n")
+  print(conf.m)
+  conf.p <- prop.table(conf)
+  conf.pm <- round(addmargins(conf.p), 2)
+  cat("\nConfusion matrix (relative):\n")
+  print(conf.pm)
+  sum.conf.adj <- sum(conf[colnames(conf)[col(conf)] == rownames(conf)[row(conf)]])
+  cat("\nAccuracy:\n", round(sum.conf.adj / sum(conf), 4), " (", sum.conf.adj, "/", sum(conf), ")", sep = "")
+  cat("\n\nError rate:\n", round(1 - sum.conf.adj / sum(conf), 4), " (", sum(conf) - sum.conf.adj, "/", sum(conf), ")\n\n", sep = "")
+  return(invisible(list(correct_instances = sum.conf.adj, total_instances = sum(conf), conf_matrix = conf)))
 }

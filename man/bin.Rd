@@ -4,8 +4,8 @@
 \alias{bin}
 \title{Binning function}
 \usage{
-bin(data, nbins = 5, labels = NULL, method = c("length", "content"),
-  na.omit = TRUE)
+bin(data, nbins = 5, labels = NULL, method = c("length", "content",
+  "clusters"), na.omit = TRUE)
 }
 \arguments{
 \item{data}{dataframe which contains the data.}
@@ -16,16 +16,20 @@ bin(data, nbins = 5, labels = NULL, method = c("length", "content"),
 
 \item{method}{a character string specifying the binning method, see 'Details'; can be abbreviated.}
 
-\item{na.omit}{boolean value whether instances with missing values should be removed.}
+\item{na.omit}{logical value whether instances with missing values should be removed.}
+}
+\value{
+A dataframe or vector.
 }
 \description{
-Discretizes all numerical data in a dataframe into categorical bins of equal length or content.
+Discretizes all numerical data in a dataframe into categorical bins of equal length or content or based on automatically determined clusters.
 }
 \details{
 Character strings and logical strings are coerced into factors. Matrices are coerced into dataframes. When called with a single vector only the respective factor (and not a dataframe) is returned.
 Method \code{"length"} gives intervals of equal length, method \code{"content"} gives intervals of equal content (via quantiles).
+Method \code{"clusters"} determins \code{"nbins"} clusters via 1D kmeans with deterministic seeding of the initial cluster centres (Jenks natural breaks optimization).
 
-When \code{"na.omit = FALSE"} a new level \code{"NA"} is introduced into each factor.
+When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
 }
 \examples{
 data <- iris
@@ -37,6 +41,15 @@ str(bin(data, nbins = 3, labels = c("small", "medium", "large")))
 ## Difference between methods "length" and "content"
 set.seed(1); table(bin(rnorm(900), nbins = 3))
 set.seed(1); table(bin(rnorm(900), nbins = 3, method = "content"))
+
+## Method "clusters"
+intervals <- paste(levels(bin(faithful$waiting, nbins = 2, method = "cluster")), collapse = " ")
+hist(faithful$waiting, main = paste("Intervals:", intervals))
+abline(v = c(42.9, 67.5, 96.1), col = "blue")
+
+## Missing values
+bin(c(1:10, NA), nbins = 2, na.omit = FALSE) # adds new level "NA"
+bin(c(1:10, NA), nbins = 2)                  # omits missing values by default (with warning)
 }
 \author{
 Holger von Jouanne-Diedrich
@@ -47,7 +60,10 @@ Holger von Jouanne-Diedrich
 \seealso{
 \code{\link{OneR}}, \code{\link{optbin}}
 }
+\keyword{Jenks}
 \keyword{binning}
+\keyword{breaks}
+\keyword{clusters}
 \keyword{discretization}
 \keyword{discretize}
 

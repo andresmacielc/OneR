@@ -15,7 +15,7 @@ CUT <- function(x, breaks, ...) {
     }
   }
   breaks.f <- c(breaks[1], as.numeric(formatC(0 + breaks[2:(length(breaks)-1)], digits = 3, width = 1L)), breaks[length(breaks)])
-  cut(x, breaks = breaks.f, ...)
+  cut(x, breaks = unique(breaks.f), ...)
 }
 
 mode <- function(x) {
@@ -23,15 +23,20 @@ mode <- function(x) {
 }
 
 addNA <- function(x) {
-  if (is.factor(x)) x <- factor(x, levels = c(levels(x), "NA"))
+  if (is.factor(x) & !("NA" %in% levels(x))) x <- factor(x, levels = c(levels(x), "NA"))
   x[is.na(x)] <- "NA"
   return(x)
 }
 
+add_range <- function(x, midpoints) {
+  c(min(x, na.rm = TRUE) - 1/1000 * diff(range(x, na.rm = TRUE)), midpoints, max(x, na.rm = TRUE) + 1/1000 * diff(range(x, na.rm = TRUE)))
+}
+
 get_breaks <- function(x) {
+  x <- x[x != "NA"]
   lower = as.numeric(sub("\\((.+),.*", "\\1", x))
   upper = as.numeric(sub("[^,]*,([^]]*)\\]", "\\1", x))
-  breaks <- unique(c(lower, upper))
+  breaks <- unique(na.omit(c(lower, upper)))
   return(breaks)
 }
 
@@ -42,9 +47,9 @@ naive <- function(x, target) {
   tmp <- na.omit(cbind(x, target))
   x <- tmp[ , 1]; target <- tmp[ , 2]
   xs <- split(x, target)
-  midpoints <- sort(sapply(xs, mean))
+  midpoints <- sort(sapply(xs, mean, na.rm = TRUE))
   # The cutpoints are the means of the expected values of the respective target levels.
-  breaks <- c(min(x) - 1/1000 * diff(range(x)), na.omit(filter(midpoints, c(1/2, 1/2))), max(x) + 1/1000 * diff(range(x)))
+  breaks <- add_range(x, na.omit(filter(midpoints, c(1/2, 1/2))))
   CUT(orig, breaks = unique(breaks))
 }
 
@@ -56,8 +61,9 @@ logreg_midpoint <- function(data) {
   coefs <-  suppressWarnings(coef(glm(target ~ x, data = df, family = binomial)))
   midpoint <- - coefs[1] / coefs[2]
   # test limits
-  range <- sort(sapply(data, mean))
-  if (is.na(midpoint)) return(mean(range))
+  range <- sort(sapply(data, mean, na.rm = TRUE))
+  if (length(range) == 1) range <- c(range, range)
+  if (is.na(midpoint)) return(mean(range, na.rm = TRUE))
   if (midpoint < range[1]) return(range[1])
   if (midpoint > range[2]) return(range[2])
   # ---
@@ -73,7 +79,7 @@ logreg <- function(x, target) {
   midpoints <- sapply(xs, mean)
   nl <- xs[order(midpoints)]
   pairs <- matrix(c(1:(length(nl) - 1), 2:length(nl)), ncol = 2, byrow = TRUE)
-  midbreaks <- apply(pairs, 1, function(x) logreg_midpoint(c(nl[x[1]], nl[x[2]])))
-  breaks <- c(min(x) - 1/1000 * diff(range(x)), midbreaks, max(x) + 1/1000 * diff(range(x)))
+  midpoints <- apply(pairs, 1, function(x) logreg_midpoint(c(nl[x[1]], nl[x[2]])))
+  breaks <- add_range(x, na.omit(midpoints))
   CUT(orig, breaks = unique(breaks))
 }

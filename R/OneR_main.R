@@ -7,6 +7,8 @@
 #' @param formula formula interface for the \code{OneR} function.
 #' @param ties.method a character string specifying how ties are treated, see 'Details'; can be abbreviated.
 #' @param verbose If \code{TRUE} prints rank, names and predictive accuracy of the attributes in decreasing order (with \code{ties.method = "first"}).
+#' @return Returns an object of class "OneR". Internally this is a list consisting of the function call with the specified arguments, the names of the target and feature variables,
+#' a list of the rules, the number of correctly classified and total instances and the contingency table of the best predictor vs. the target variable.
 #' @keywords 1R OneR One Rule
 #' @details All numerical data is automatically converted into five categorical bins of equal length. Instances with missing values are removed.
 #' This is done by internally calling the default version of \code{\link{bin}} before starting the OneR algorithm.
@@ -36,6 +38,7 @@
 #' @importFrom stats chisq.test
 #' @export
 OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbose = FALSE) {
+  call <- match.call()
   method <- match.arg(ties.method)
   if (class(formula) == "formula") {
     mf <- model.frame(formula = formula, data = data, na.action = NULL)
@@ -66,14 +69,14 @@ OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbos
   majority <- lapply(groups, mode)
   feature <- names(data[ , best, drop = FALSE])
   cont_table <- table(c(data[target], data[feature]))
-  output <- c(target = target, feature = feature, rules = list(majority), correct_instances = max(perf), total_instances = nrow(data), cont_table = list(cont_table))
+  output <- c(call = call, target = target, feature = feature, rules = list(majority), correct_instances = max(perf), total_instances = nrow(data), cont_table = list(cont_table))
   class(output) <- "OneR"
   if (verbose == TRUE) {
     newbest <- which(which(perf == max(perf)) == best)
     accs <- round(100 * sort(perf, decreasing = TRUE) / nrow(data), 2)
     attr <- colnames(data[order(perf, decreasing = TRUE)])
     M <- matrix(c(as.character(attr), paste(accs, "%", sep = "")), ncol = 2)
-    rownames(M) <- rank((100 - sort(accs, decreasing = TRUE)), ties.method = "min")
+    rownames(M) <- rank((100 - sort(perf, decreasing = TRUE)), ties.method = "min")
     rownames(M)[newbest] <- paste(rownames(M)[newbest], " *", sep = "")
     colnames(M) <- c("Attribute", "Accuracy")
     cat("\n")
