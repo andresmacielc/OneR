@@ -4,35 +4,41 @@
 \alias{predict.OneR}
 \title{Predict method for OneR models}
 \usage{
-\method{predict}{OneR}(object, newdata, ...)
+\method{predict}{OneR}(object, newdata, type = c("class", "prob"), ...)
 }
 \arguments{
 \item{object}{object of class \code{"OneR"}.}
 
 \item{newdata}{dataframe in which to look for the feature variable with which to predict.}
 
+\item{type}{character string denoting the type of predicted value returned. Default \code{"class"} gives a named vector with the predicted classes, \code{"prob"} gives a matrix whose columns are the probability of the first, second, etc. class.}
+
 \item{...}{further arguments passed to or from other methods.}
 }
 \value{
-A named vector.
+The default is a factor with the predicted classes, if \code{"type = prob"} a matrix is returned whose columns are the probability of the first, second, etc. class.
 }
 \description{
-Predict values based on OneR model object.
+Predict cases or probabilities based on OneR model object.
 }
 \details{
 \code{newdata} can have the same format as used for building the model but must at least have the feature variable that is used in the OneR rules.
-If cases appear that were not present when building the model the predicted value is \code{UNSEEN}.
+If cases appear that were not present when building the model the predicted case is \code{UNSEEN} or \code{NA} when \code{"type = prob"}.
 }
 \examples{
 model <- OneR(iris)
 prediction <- predict(model, iris[1:4])
 eval_model(prediction, iris[5])
+
+## type prob
+predict(model, data.frame(Petal.Width = seq(0, 3, 0.5)))
+predict(model, data.frame(Petal.Width = seq(0, 3, 0.5)), type = "prob")
 }
 \author{
 Holger von Jouanne-Diedrich
 }
 \references{
-\url{http://vonjd.github.io/OneR/}
+\url{https://github.com/vonjd/OneR}
 }
 \seealso{
 \code{\link{OneR}}

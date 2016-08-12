@@ -22,10 +22,10 @@ mode <- function(x) {
   names(sort(-table(x[ , ncol(x)])))[1]
 }
 
-addNA <- function(x) {
+ADDNA <- function(x) {
   if (is.factor(x) & !("NA" %in% levels(x))) x <- factor(x, levels = c(levels(x), "NA"))
   x[is.na(x)] <- "NA"
-  return(x)
+  x
 }
 
 add_range <- function(x, midpoints) {
@@ -37,20 +37,7 @@ get_breaks <- function(x) {
   lower = as.numeric(sub("\\((.+),.*", "\\1", x))
   upper = as.numeric(sub("[^,]*,([^]]*)\\]", "\\1", x))
   breaks <- unique(na.omit(c(lower, upper)))
-  return(breaks)
-}
-
-#' @importFrom stats na.omit
-#' @importFrom stats filter
-naive <- function(x, target) {
-  orig <- x
-  tmp <- na.omit(cbind(x, target))
-  x <- tmp[ , 1]; target <- tmp[ , 2]
-  xs <- split(x, target)
-  midpoints <- sort(sapply(xs, mean, na.rm = TRUE))
-  # The cutpoints are the means of the expected values of the respective target levels.
-  breaks <- add_range(x, na.omit(filter(midpoints, c(1/2, 1/2))))
-  CUT(orig, breaks = unique(breaks))
+  breaks
 }
 
 #' @importFrom stats coef
@@ -67,19 +54,54 @@ logreg_midpoint <- function(data) {
   if (midpoint < range[1]) return(range[1])
   if (midpoint > range[2]) return(range[2])
   # ---
-  return(midpoint)
+  midpoint
+}
+
+entropy <- function(x) {
+  freqs <- table(x) / length(x)
+  - sum(freqs * log2(freqs))
 }
 
 #' @importFrom stats na.omit
-logreg <- function(x, target) {
+infogain_midpoint <- function(data) {
+  df <- data.frame(numvar = unlist(data), target = factor(rep(names(data), sapply(data, length))))
+  data <- na.omit(df[order(df[ , 1]), ])
+  numvar <- data$numvar; target <- data$target
+  # determine midpoint candidates
+  left_thresholds <- which(as.logical(diff(as.numeric(target))))
+  midpoints <- (numvar[left_thresholds] + numvar[(left_thresholds + 1)]) / 2
+  # calculate average entropies for all midpoint candidates
+  belows <- lapply(midpoints, function(x) as.character(data[numvar <= x, 2]))
+  aboves <- lapply(midpoints, function(x) as.character(data[numvar > x, 2]))
+  below_entropies <- sapply(belows, function(x) length(x)/length(target) * entropy(x))
+  above_entropies <- sapply(aboves, function(x) length(x)/length(target) * entropy(x))
+  # calculate information gains and chose highest one
+  infogains <- entropy(target) - (below_entropies + above_entropies)
+  midpoints[which.max(infogains)]
+}
+
+#' @importFrom stats na.omit
+#' @importFrom stats filter
+optcut <- function(x, target, method) {
   orig <- x
   tmp <- na.omit(cbind(x, target))
   x <- tmp[ , 1]; target <- tmp[ , 2]
   xs <- split(x, target)
-  midpoints <- sapply(xs, mean)
-  nl <- xs[order(midpoints)]
-  pairs <- matrix(c(1:(length(nl) - 1), 2:length(nl)), ncol = 2, byrow = TRUE)
-  midpoints <- apply(pairs, 1, function(x) logreg_midpoint(c(nl[x[1]], nl[x[2]])))
-  breaks <- add_range(x, na.omit(midpoints))
+  if (method == "naive") {
+    midpoints <- sort(sapply(xs, mean, na.rm = TRUE))
+    # Cutpoints are the means of the expected values of the respective target levels.
+    breaks <- add_range(x, na.omit(filter(midpoints, c(1/2, 1/2))))
+  } else {
+    midpoints <- sapply(xs, mean, na.rm = TRUE)
+    nl <- xs[order(midpoints)]
+    pairs <- matrix(c(1:(length(nl) - 1), 2:length(nl)), ncol = 2, byrow = TRUE)
+    if (method == "logreg") {
+      midpoints <- apply(pairs, 1, function(x) logreg_midpoint(c(nl[x[1]], nl[x[2]])))
+    }
+    if (method == "infogain") {
+      midpoints <- apply(pairs, 1, function(x) infogain_midpoint(c(nl[x[1]], nl[x[2]])))
+    }
+    breaks <- add_range(x, na.omit(midpoints))
+  }
   CUT(orig, breaks = unique(breaks))
 }

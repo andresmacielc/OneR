@@ -3,10 +3,10 @@
 #' Binning function
 #'
 #' Discretizes all numerical data in a dataframe into categorical bins of equal length or content or based on automatically determined clusters.
-#' @param data dataframe which contains the data.
+#' @param data dataframe or vector which contains the data.
 #' @param nbins number of bins (= levels).
 #' @param labels character vector of labels for the resulting category.
-#' @param method a character string specifying the binning method, see 'Details'; can be abbreviated.
+#' @param method character string specifying the binning method, see 'Details'; can be abbreviated.
 #' @param na.omit logical value whether instances with missing values should be removed.
 #' @return A dataframe or vector.
 #' @keywords binning discretization discretize clusters Jenks breaks
@@ -16,7 +16,7 @@
 #'
 #' When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}, \code{\link{optbin}}
 #' @examples
 #' data <- iris
@@ -47,13 +47,15 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content", 
   # could be a matrix -> dataframe (even with only one column)
   if (is.list(data) == FALSE) data <- data.frame(data)
   if (na.omit == TRUE) {
-    len_rows <- nrow(data)
+    len_rows_orig <- nrow(data)
     data <- na.omit(data)
-    if (len_rows > nrow(data)) warning("at least one instance was removed due to missing values")
+    len_rows_new <- nrow(data)
+    no_removed <- len_rows_orig - len_rows_new
+    if (no_removed > 0) warning(paste(no_removed, "instance(s) removed due to missing values"))
   }
   if (!is.null(labels)) if (nbins != length(labels)) stop("number of 'nbins' and 'labels' differ")
-  if (nbins <= 1) stop("number of 'bins' must be bigger than 1")
-  data[] <- lapply(data, function(x) if (is.numeric(x) ) {
+  if (nbins <= 1) stop("nbins must be bigger than 1")
+  data[] <- lapply(data, function(x) if (is.numeric(x)) {
     if (length(unique(x)) <= nbins) as.factor(x)
     else {
       if (method == "content") nbins <- add_range(x, na.omit(quantile(x, (1:(nbins-1)/nbins), na.rm = TRUE)))
@@ -64,12 +66,9 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content", 
       CUT(x, breaks = unique(nbins), labels = labels)
     }
   } else as.factor(x))
-  if (na.omit == FALSE) {
-    # data[] <- lapply(data, addNA)
-    data[] <- lapply(data, function(x) if(any(is.na(x))) addNA(x) else x)
-  }
+  data[] <- lapply(data, function(x) if(any(is.na(as.character(x)))) ADDNA(x) else x)
   if (vec) { data <- unlist(data); names(data) <- NULL }
-  return(data)
+  data
 }
 
 #' Optimal Binning function
@@ -78,19 +77,22 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content", 
 #' When building a OneR model this could result in fewer rules with enhanced accuracy.
 #' @param data dataframe which contains the data. When \code{formula = NULL} (the default) the last column must be the target variable.
 #' @param formula formula interface for the \code{optbin} function.
-#' @param method a character string specifying the method for optimal binning, see 'Details'; can be abbreviated.
+#' @param method character string specifying the method for optimal binning, see 'Details'; can be abbreviated.
 #' @param na.omit logical value whether instances with missing values should be removed.
 #' @return A dataframe with the target variable being in the last column.
 #' @keywords binning discretization discretize
-#' @details The cutpoints are calculated by pairwise logistic regressions (method \code{"logreg"}) or as the means of the expected values of the respective classes (\code{"naive"}).
+#' @details The cutpoints are calculated by pairwise logistic regressions (method \code{"logreg"}), information gain (method \code{"infogain"}) or as the means of the expected values of the respective classes (\code{"naive"}).
 #' The function is likely to give unsatisfactory results when the distributions of the respective classes are not (linearly) separable. Method \code{"naive"} should only be used when distributions are (approximately) normal,
 #' although in this case \code{"logreg"} should give comparable results, so it is the preferable (and therefore default) method.
+#'
+#' Method \code{"infogain"} is an entropy based method which calculates cut points based on information gain. The idea is that uncertainty is minimized by making the resulting bins as pure as possible. This method is the standard method of many decision tree algorithms.
 #'
 #' Character strings and logical strings are coerced into factors. Matrices are coerced into dataframes. If the target is numeric it is turned into a factor with the number of levels equal to the number of values. Additionally a warning is given.
 #'
 #' When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
+#' If the target contains unused factor levels (e.g. due to subsetting) these are ignored and a warning is given.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}, \code{\link{bin}}
 #' @examples
 #' data <- iris # without optimal binning
@@ -107,37 +109,41 @@ bin <- function(data, nbins = 5, labels = NULL, method = c("length", "content", 
 #' summary(model_opt)
 #'
 #' @export
-optbin <- function(data, formula = NULL, method = c("logreg", "naive"), na.omit = TRUE) {
+optbin <- function(data, formula = NULL, method = c("logreg", "infogain", "naive"), na.omit = TRUE) {
   method <- match.arg(method)
   if (class(formula) == "formula") {
     mf <- model.frame(formula = formula, data = data, na.action = NULL)
     data <- mf[c(2:ncol(mf), 1)]
   } else if (is.null(formula) == FALSE) stop("invalid formula")
-  if (is.list(data) == FALSE) data <- data.frame(data)
-  if (dim(data)[2] < 2) stop("data must have at least two columns")
-  if (is.numeric(unlist(data[ncol(data)])) == TRUE) {
-    data[ncol(data)] <- as.factor(unlist(data[ncol(data)]))
-    warning("target is numeric")
+  if (is.list(data) == FALSE) {
+    data <- data.frame(data)
+    warning("data is not a dataframe")
   }
+  if (dim(data)[2] < 2) stop("data must have at least two columns")
+  if (is.numeric(data[ , ncol(data)]) == TRUE) warning("target is numeric")
+  data[ncol(data)] <- as.factor(data[ , ncol(data)])
   if (na.omit == TRUE) {
-    len_rows <- nrow(data)
+    len_rows_orig <- nrow(data)
     data <- na.omit(data)
-    if (len_rows > nrow(data)) warning("at least one instance was removed due to missing values")
+    len_rows_new <- nrow(data)
+    no_removed <- len_rows_orig - len_rows_new
+    if (no_removed > 0) warning(paste(no_removed, "instance(s) removed due to missing values"))
   } else {
     # only add NA to target
-    if(any(is.na(unlist(data[ncol(data)])))) data[ncol(data)] <- addNA(unlist(data[ncol(data)]))
+    if(any(is.na(as.character(data[ , ncol(data)])))) data[ncol(data)] <- ADDNA(data[ , ncol(data)])
   }
-  target <- data[ncol(data)]
-  nbins <- length(unique(unlist(target)))
+  target <- data[ , ncol(data)]
+  # Test if unused factor levels and drop them for analysis
+  nlevels_orig <- nlevels(target)
+  target <- droplevels(target)
+  nbins <- nlevels(target)
+  if (nbins < nlevels_orig) warning("target contains unused factor levels")
   if (nbins <= 1) stop("number of target levels must be bigger than 1")
   data[] <- lapply(data, function(x) if (is.numeric(x)) {
-    if (length(unique(x)) <= nbins) as.factor(x) else do.call(method, list(x, target))
+    if (length(unique(x)) <= nbins) as.factor(x) else optcut(x, target, method)
   } else as.factor(x))
-  if (na.omit == FALSE) {
-    # data[] <- lapply(data, addNA)
-    data[] <- lapply(data, function(x) if(any(is.na(x))) addNA(x) else x)
-  }
-  return(data)
+  data[] <- lapply(data, function(x) if(any(is.na(as.character(x)))) ADDNA(x) else x)
+  data
 }
 
 #' Remove factors with too many levels
@@ -151,8 +157,9 @@ optbin <- function(data, formula = NULL, method = c("logreg", "naive"), na.omit 
 #' Examples are IDs or names.
 #'
 #' Character strings are treated as factors although they keep their datatype. Numeric data is left untouched.
+#' If data contains unused factor levels (e.g. due to subsetting) these are ignored and a warning is given.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}
 #' @examples
 #' df <- data.frame(numeric = c(1:26), alphabet = letters)
@@ -162,30 +169,40 @@ optbin <- function(data, formula = NULL, method = c("logreg", "naive"), na.omit 
 maxlevels <- function(data, maxlevels = 20, na.omit = TRUE) {
   if (is.list(data) == FALSE) stop("data must be a dataframe")
   if (maxlevels <= 2) stop("maxlevels must be bigger than 2")
-  tmp <- bin(data, nbins = 2, na.omit = na.omit)
-  nlevels <- sapply(tmp, nlevels)
-  cols <- nlevels <= maxlevels
-  return(data[cols])
+  tmp <- suppressWarnings(bin(data, nbins = 2, na.omit = na.omit))
+  # Test if unused factor levels and drop them for analysis
+  nlevels_orig <- sapply(tmp, nlevels)
+  tmp <- droplevels(tmp)
+  nlevels_new <- sapply(tmp, nlevels)
+  if (sum(nlevels_new) < sum(nlevels_orig)) warning("data contains unused factor levels")
+  cols <- nlevels_new <= maxlevels
+  data[cols]
 }
 
 #' Predict method for OneR models
 #'
-#' Predict values based on OneR model object.
+#' Predict cases or probabilities based on OneR model object.
 #' @param object object of class \code{"OneR"}.
 #' @param newdata dataframe in which to look for the feature variable with which to predict.
+#' @param type character string denoting the type of predicted value returned. Default \code{"class"} gives a named vector with the predicted classes, \code{"prob"} gives a matrix whose columns are the probability of the first, second, etc. class.
 #' @param ... further arguments passed to or from other methods.
-#' @return A named vector.
+#' @return The default is a factor with the predicted classes, if \code{"type = prob"} a matrix is returned whose columns are the probability of the first, second, etc. class.
 #' @details \code{newdata} can have the same format as used for building the model but must at least have the feature variable that is used in the OneR rules.
-#' If cases appear that were not present when building the model the predicted value is \code{UNSEEN}.
+#' If cases appear that were not present when building the model the predicted case is \code{UNSEEN} or \code{NA} when \code{"type = prob"}.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}
 #' @examples
 #' model <- OneR(iris)
 #' prediction <- predict(model, iris[1:4])
 #' eval_model(prediction, iris[5])
+#'
+#' ## type prob
+#' predict(model, data.frame(Petal.Width = seq(0, 3, 0.5)))
+#' predict(model, data.frame(Petal.Width = seq(0, 3, 0.5)), type = "prob")
 #' @export
-predict.OneR <- function(object, newdata, ...) {
+predict.OneR <- function(object, newdata, type = c("class", "prob"), ...) {
+  type <- match.arg(type)
   if (is.list(newdata) == FALSE) stop("newdata must be a dataframe")
   if (all(names(newdata) != object$feature)) stop("cannot find feature column in newdata")
   model <- object
@@ -194,11 +211,19 @@ predict.OneR <- function(object, newdata, ...) {
   if (is.numeric(data[ , index])) {
     levels <- names(model$rules)
     if (substring(levels[1], 1, 1) == "(" & grepl(",", levels[1]) == TRUE & substring(levels[1], nchar(levels[1]), nchar(levels[1])) == "]") {
-      features <- as.character(cut(unlist(data[ , index]), breaks = get_breaks(levels)))
+      features <- as.character(cut(data[ , index], breaks = c(-Inf, get_breaks(levels), Inf)))
     } else features <- as.character(data[ , index])
   } else features <- as.character(data[ , index])
   features[is.na(features)] <- "NA"
-  return(sapply(features, function(x) if (is.null(model$rules[[x]]) == TRUE) "UNSEEN" else model$rules[[x]]))
+  if (type == "prob") {
+    probs <- prop.table(model$cont_table, margin = 2)
+    probrules <- lapply(names(model$rules), function(x) probs[ , x])
+    names(probrules) <- names(model$rules)
+    M <- t(sapply(features, function(x) if (is.null(probrules[[x]]) == TRUE) rep(NA, dim(model$cont_table)[1]) else probrules[[x]]))
+    colnames(M) <- rownames(model$cont_table)
+    return(M)
+  }
+  factor(sapply(features, function(x) if (is.null(model$rules[[x]]) == TRUE) "UNSEEN" else model$rules[[x]]))
 }
 
 #' Summarize OneR models
@@ -210,7 +235,7 @@ predict.OneR <- function(object, newdata, ...) {
 #'
 #' In the contingency table the maximum values in each column are highlighted by adding a '*', thereby representing the rules of the OneR model.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}
 #' @keywords diagnostics
 #' @examples
@@ -253,7 +278,7 @@ summary.OneR <- function(object, ...) {
 #' @param ... further arguments passed to or from other methods.
 #' @details Prints the rules and the accuracy of an OneR model.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}
 #' @examples
 #' model <- OneR(iris)
@@ -280,7 +305,7 @@ print.OneR <- function(x, ...) {
 #' @param ... further arguments passed to or from other methods.
 #' @details If more than 20 levels are present for either the feature attribute or the target the function stops with an error.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{OneR}}
 #' @keywords diagnostics
 #' @examples
@@ -290,7 +315,7 @@ print.OneR <- function(x, ...) {
 #' @export
 plot.OneR <- function(x, ...) {
   model <- x
-  if (any(dim(model$cont_table) > 20)) stop("cannot plot: more than 20 levels")
+  if (any(dim(model$cont_table) > 20)) stop("cannot plot more than 20 levels")
   mosaicplot(t(model$cont_table), color = TRUE, main = "OneR model diagnostic plot")
 }
 
@@ -301,7 +326,7 @@ plot.OneR <- function(x, ...) {
 #' @return a logical whether object is of class "OneR".
 #' @keywords OneR model
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @examples
 #' model <- OneR(iris)
 #' is.OneR(model) # evaluates to TRUE
@@ -315,7 +340,7 @@ is.OneR <- function(x) inherits(x, "OneR")
 #' @param actual dataframe which contains the actual data. When there is more than one column the last last column is taken. A single vector is allowed too.
 #' @return Invisibly returns a list with the number of correctly classified and total instances and a confusion matrix with the absolute numbers.
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @keywords evaluation accuracy
 #' @examples
 #' data <- iris
@@ -328,8 +353,8 @@ is.OneR <- function(x) inherits(x, "OneR")
 eval_model <- function(prediction, actual) {
   if (is.list(actual) == FALSE) actual <- data.frame(actual)
   actual <- actual[ , ncol(actual)]
-  if (any(is.na(actual))) warning("actual contains missing values, results may be false")
-  if (typeof(as.vector(actual)) != typeof(prediction)) warning("data types of prediction and actual are different")
+  if (any(is.na(actual))) warning("'actual' contains missing values, results may be false")
+  if (typeof(as.vector(actual)) != typeof(as.vector(prediction))) warning("data types of prediction and actual are different")
   conf <- table(prediction, actual)
   conf.m <- addmargins(conf)
   cat("\nConfusion matrix (absolute):\n")
@@ -341,5 +366,5 @@ eval_model <- function(prediction, actual) {
   sum.conf.adj <- sum(conf[colnames(conf)[col(conf)] == rownames(conf)[row(conf)]])
   cat("\nAccuracy:\n", round(sum.conf.adj / sum(conf), 4), " (", sum.conf.adj, "/", sum(conf), ")", sep = "")
   cat("\n\nError rate:\n", round(1 - sum.conf.adj / sum(conf), 4), " (", sum(conf) - sum.conf.adj, "/", sum(conf), ")\n\n", sep = "")
-  return(invisible(list(correct_instances = sum.conf.adj, total_instances = sum(conf), conf_matrix = conf)))
+  invisible(list(correct_instances = sum.conf.adj, total_instances = sum(conf), conf_matrix = conf))
 }

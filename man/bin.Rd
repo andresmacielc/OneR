@@ -8,13 +8,13 @@ bin(data, nbins = 5, labels = NULL, method = c("length", "content",
   "clusters"), na.omit = TRUE)
 }
 \arguments{
-\item{data}{dataframe which contains the data.}
+\item{data}{dataframe or vector which contains the data.}
 
 \item{nbins}{number of bins (= levels).}
 
 \item{labels}{character vector of labels for the resulting category.}
 
-\item{method}{a character string specifying the binning method, see 'Details'; can be abbreviated.}
+\item{method}{character string specifying the binning method, see 'Details'; can be abbreviated.}
 
 \item{na.omit}{logical value whether instances with missing values should be removed.}
 }
@@ -55,7 +55,7 @@ bin(c(1:10, NA), nbins = 2)                  # omits missing values by default (
 Holger von Jouanne-Diedrich
 }
 \references{
-\url{http://vonjd.github.io/OneR/}
+\url{https://github.com/vonjd/OneR}
 }
 \seealso{
 \code{\link{OneR}}, \code{\link{optbin}}

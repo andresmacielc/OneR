@@ -5,7 +5,7 @@
 #' Builds a model according to the One Rule (OneR) machine learning classification algorithm.
 #' @param data dataframe, which contains the data. When \code{formula = NULL} (the default) the last column must be the target variable.
 #' @param formula formula interface for the \code{OneR} function.
-#' @param ties.method a character string specifying how ties are treated, see 'Details'; can be abbreviated.
+#' @param ties.method character string specifying how ties are treated, see 'Details'; can be abbreviated.
 #' @param verbose If \code{TRUE} prints rank, names and predictive accuracy of the attributes in decreasing order (with \code{ties.method = "first"}).
 #' @return Returns an object of class "OneR". Internally this is a list consisting of the function call with the specified arguments, the names of the target and feature variables,
 #' a list of the rules, the number of correctly classified and total instances and the contingency table of the best predictor vs. the target variable.
@@ -13,11 +13,12 @@
 #' @details All numerical data is automatically converted into five categorical bins of equal length. Instances with missing values are removed.
 #' This is done by internally calling the default version of \code{\link{bin}} before starting the OneR algorithm.
 #' To finetune this behaviour data preprocessing with the \code{\link{bin}} or \code{\link{optbin}} functions should be performed.
+#' If data contains unused factor levels (e.g. due to subsetting) these are ignored and a warning is given.
 #'
 #' When there is more than one attribute with best performance either the first (from left to right) is being chosen (method \code{"first"}) or
 #' the one with the lowest p-value of a chi-squared test (method \code{"chisq"}).
 #' @author Holger von Jouanne-Diedrich
-#' @references \url{http://vonjd.github.io/OneR/}
+#' @references \url{https://github.com/vonjd/OneR}
 #' @seealso \code{\link{bin}}, \code{\link{optbin}}, \code{\link{eval_model}}, \code{\link{maxlevels}}
 #' @examples
 #' data <- optbin(iris)
@@ -47,6 +48,12 @@ OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbos
   if (dim(data.frame(data))[2] < 2) stop("data must have at least two columns")
   data <- bin(data)
   if (nrow(data) == 0) stop("no data to analyse")
+  # Test if unused factor levels and drop them for analysis
+  nlevels_orig <- sum(sapply(data, nlevels))
+  data <- droplevels(data)
+  nlevels_new <- sum(sapply(data, nlevels))
+  if (nlevels_new < nlevels_orig) warning("data contains unused factor levels")
+  # main routine
   perf <- c()
   for (iter in 1:(ncol(data) - 1)) {
     groups <- split(data, data[ , iter])
@@ -69,8 +76,15 @@ OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbos
   majority <- lapply(groups, mode)
   feature <- names(data[ , best, drop = FALSE])
   cont_table <- table(c(data[target], data[feature]))
-  output <- c(call = call, target = target, feature = feature, rules = list(majority), correct_instances = max(perf), total_instances = nrow(data), cont_table = list(cont_table))
+  output <- c(call = call,
+              target = target,
+              feature = feature,
+              rules = list(majority),
+              correct_instances = max(perf),
+              total_instances = nrow(data),
+              cont_table = list(cont_table))
   class(output) <- "OneR"
+  # additional diagnostic information if wanted
   if (verbose == TRUE) {
     newbest <- which(which(perf == max(perf)) == best)
     accs <- round(100 * sort(perf, decreasing = TRUE) / nrow(data), 2)
@@ -83,5 +97,5 @@ OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbos
     print(M, quote = FALSE)
     cat("---\nChosen attribute due to accuracy\nand ties method (if applicable): '*'\n\n")
   }
-  return(output)
+  output
 }
