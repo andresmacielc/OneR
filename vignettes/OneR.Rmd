@@ -4,7 +4,7 @@ author: "An R package by Holger K. von Jouanne-Diedrich"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{OneR}
+  %\VignetteIndexEntry{OneR - Establishing a New Baseline for Machine Learning Classification Models}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -209,7 +209,7 @@ str(maxlevels(df))
 
 ### predict
 
-predict is a S3 method for predicting cases or probabilites based on OneR model objects. The default is a factor with the predicted classes.
+predict is a S3 method for predicting cases or probabilites based on OneR model objects. The second argument "newdata"" can have the same format as used for building the model but must at least have the feature variable that is used in the OneR rules. The default output is a factor with the predicted classes.
 
 ```{r}
 model <- OneR(iris)
@@ -224,7 +224,7 @@ predict(model, data.frame(Petal.Width = seq(0, 3, 0.5)), type = "prob")
 
 ### eval_model
 
-eval_model is a simple function for evaluating a OneR classification model, which is included in the package for convenience reasons. It prints prediction vs. actual in absolute and relative numbers. Additionally, it gives the accuracy and error rate. The second argument "actual" is a dataframe which contains the actual data in the last column. A single vector is allowed too.
+eval_model is a simple function for evaluating a OneR classification model. It prints confusion matrices with prediction vs. actual in absolute and relative numbers. Additionally it gives the accuracy, error rate as well as the error rate reduction versus the base rate accuracy together with a p-value. The second argument "actual" is a dataframe which contains the actual data in the last column. A single vector is allowed too.
 
 For the details please consult the available help entries.
 
@@ -236,9 +236,9 @@ From within R:
 help(package = OneR)
 ```
 
-...or as a pdf here: [OneR.pdf](https://cran.r-project.org/web/packages/OneR/OneR.pdf)
+...or as a pdf here: [OneR.pdf](https://cran.r-project.org/package=OneR/OneR.pdf)
 
-Issues can be posted here: http://github.com/vonjd/OneR/issues
+Issues can be posted here: https://github.com/vonjd/OneR/issues
 
 The latest version of the package (and full sourcecode) can be found here: https://github.com/vonjd/OneR
 
@@ -252,4 +252,4 @@ I would love to hear about your experiences with the OneR package. Please drop m
 
 ## License
 
-This package is under [MIT License](https://cran.r-project.org/web/packages/OneR/LICENSE).
+This package is under [MIT License](https://cran.r-project.org/package=OneR/LICENSE).
