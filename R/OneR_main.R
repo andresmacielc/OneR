@@ -3,10 +3,12 @@
 #' One Rule function
 #'
 #' Builds a model according to the One Rule (OneR) machine learning classification algorithm.
-#' @param data dataframe, which contains the data. When \code{formula = NULL} (the default) the last column must be the target variable.
-#' @param formula formula interface for the \code{OneR} function.
+#' @param x data frame with the last column containing the target variable.
+#' @param formula formula, additionally the argument \code{data} is needed.
+#' @param data data frame which contains the data, only needed when using the formula interface.
 #' @param ties.method character string specifying how ties are treated, see 'Details'; can be abbreviated.
-#' @param verbose If \code{TRUE} prints rank, names and predictive accuracy of the attributes in decreasing order (with \code{ties.method = "first"}).
+#' @param verbose if \code{TRUE} prints rank, names and predictive accuracy of the attributes in decreasing order (with \code{ties.method = "first"}).
+#' @param ... arguments passed to or from other methods.
 #' @return Returns an object of class "OneR". Internally this is a list consisting of the function call with the specified arguments, the names of the target and feature variables,
 #' a list of the rules, the number of correctly classified and total instances and the contingency table of the best predictor vs. the target variable.
 #' @keywords 1R OneR One Rule
@@ -30,7 +32,7 @@
 #'
 #' ## The same with the formula interface:
 #' data <- optbin(iris)
-#' model <- OneR(formula = Species ~., data = data, verbose = TRUE)
+#' model <- OneR(Species ~., data = data, verbose = TRUE)
 #' summary(model)
 #' plot(model)
 #' prediction <- predict(model, data)
@@ -38,31 +40,45 @@
 #' @importFrom stats model.frame
 #' @importFrom stats chisq.test
 #' @export
-OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbose = FALSE) {
+OneR <- function(x, ...) UseMethod("OneR")
+
+#' @export
+OneR.default <- function(x, ...) {
+  stop("data type not supported")
+}
+
+#' @export
+#' @describeIn OneR method for formulas.
+OneR.formula <- function(formula, data, ties.method = c("first", "chisq"), verbose = FALSE, ...) {
   call <- match.call()
   method <- match.arg(ties.method)
-  if (class(formula) == "formula") {
-    mf <- model.frame(formula = formula, data = data, na.action = NULL)
-    data <- mf[c(2:ncol(mf), 1)]
-  } else if (is.null(formula) == FALSE) stop("invalid formula")
+  mf <- model.frame(formula = formula, data = data, na.action = NULL)
+  data <- mf[c(2:ncol(mf), 1)]
+  OneR.data.frame(x = data, ties.method = ties.method, verbose = verbose, fcall = call)
+}
+
+#' @export
+#' @describeIn OneR method for data frames.
+OneR.data.frame <- function(x, ties.method = c("first", "chisq"), verbose = FALSE, ...) {
+  if (!is.null(list(...)$fcall)) call <- list(...)$fcall
+  else call <- match.call()
+  method <- match.arg(ties.method)
+  data <- x
   if (dim(data.frame(data))[2] < 2) stop("data must have at least two columns")
   data <- bin(data)
   if (nrow(data) == 0) stop("no data to analyse")
-  # Test if unused factor levels and drop them for analysis
+  # test if unused factor levels and drop them for analysis
   nlevels_orig <- sum(sapply(data, nlevels))
   data <- droplevels(data)
   nlevels_new <- sum(sapply(data, nlevels))
   if (nlevels_new < nlevels_orig) warning("data contains unused factor levels")
-  # main routine
-  perf <- c()
-  for (iter in 1:(ncol(data) - 1)) {
-    groups <- split(data, data[ , iter])
-    majority <- lapply(groups, mode)
-    real <- lapply(groups, function(x) x[ , ncol(x)])
-    perf <- c(perf, sum(unlist(Map("==", real, majority))))
-  }
+  # main routine for finding the best predictor(s)
+  tables <- lapply(data[ , 1:(ncol(data)-1), drop = FALSE], table, data[ , ncol(data)])
+  errors <- sapply(tables, nerrors)
+  perf <- nrow(data) - errors
   target <- names(data[ , ncol(data), drop = FALSE])
   best <- which(perf == max(perf))
+  # method "chisq
   if (length(best) > 1) {
     if (method == "chisq") {
       features <- names(data[ , best, drop = FALSE])
@@ -72,7 +88,8 @@ OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbos
       best <- best[which.min(p.values)]
     } else best <- best[1]
   }
-  groups <- split(data, data[ , best])
+  # preparation and output of results
+  groups <- split(data[ , ncol(data), drop = FALSE], data[ , best])
   majority <- lapply(groups, mode)
   feature <- names(data[ , best, drop = FALSE])
   cont_table <- table(c(data[target], data[feature]))
@@ -84,7 +101,7 @@ OneR <- function(data, formula = NULL, ties.method = c("first", "chisq"), verbos
               total_instances = nrow(data),
               cont_table = list(cont_table))
   class(output) <- "OneR"
-  # additional diagnostic information if wanted
+  # print additional diagnostic information if wanted
   if (verbose == TRUE) {
     newbest <- which(which(perf == max(perf)) == best)
     accs <- round(100 * sort(perf, decreasing = TRUE) / nrow(data), 2)

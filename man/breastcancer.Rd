@@ -4,7 +4,7 @@
 \name{breastcancer}
 \alias{breastcancer}
 \title{Breast Cancer Wisconsin Original Data Set}
-\format{A dataframe with 699 instances and 10 attributes. The variables are as follows:}
+\format{A data frame with 699 instances and 10 attributes. The variables are as follows:}
 \usage{
 data(breastcancer)
 }
@@ -42,4 +42,3 @@ The data were obtained from the UCI machine learning repository, see \url{https:
 \keyword{cancer}
 \keyword{data}
 \keyword{datasets}
-

@@ -2,25 +2,36 @@
 % Please edit documentation in R/OneR.R
 \name{optbin}
 \alias{optbin}
+\alias{optbin.formula}
+\alias{optbin.data.frame}
 \title{Optimal Binning function}
 \usage{
-optbin(data, formula = NULL, method = c("logreg", "infogain", "naive"),
-  na.omit = TRUE)
+optbin(x, ...)
+
+\method{optbin}{formula}(formula, data, method = c("logreg", "infogain",
+  "naive"), na.omit = TRUE, ...)
+
+\method{optbin}{data.frame}(x, method = c("logreg", "infogain", "naive"),
+  na.omit = TRUE, ...)
 }
 \arguments{
-\item{data}{dataframe which contains the data. When \code{formula = NULL} (the default) the last column must be the target variable.}
+\item{x}{data frame with the last column containing the target variable.}
 
-\item{formula}{formula interface for the \code{optbin} function.}
+\item{...}{arguments passed to or from other methods.}
+
+\item{formula}{formula, additionally the argument \code{data} is needed.}
+
+\item{data}{data frame which contains the data, only needed when using the formula interface.}
 
 \item{method}{character string specifying the method for optimal binning, see 'Details'; can be abbreviated.}
 
 \item{na.omit}{logical value whether instances with missing values should be removed.}
 }
 \value{
-A dataframe with the target variable being in the last column.
+A data frame with the target variable being in the last column.
 }
 \description{
-Discretizes all numerical data in a dataframe into categorical bins where the cut points are optimally aligned with the target categories, thereby a factor is returned.
+Discretizes all numerical data in a data frame into categorical bins where the cut points are optimally aligned with the target categories, thereby a factor is returned.
 When building a OneR model this could result in fewer rules with enhanced accuracy.
 }
 \details{
@@ -30,11 +41,18 @@ although in this case \code{"logreg"} should give comparable results, so it is t
 
 Method \code{"infogain"} is an entropy based method which calculates cut points based on information gain. The idea is that uncertainty is minimized by making the resulting bins as pure as possible. This method is the standard method of many decision tree algorithms.
 
-Character strings and logical strings are coerced into factors. Matrices are coerced into dataframes. If the target is numeric it is turned into a factor with the number of levels equal to the number of values. Additionally a warning is given.
+Character strings and logical strings are coerced into factors. Matrices are coerced into data frames. If the target is numeric it is turned into a factor with the number of levels equal to the number of values. Additionally a warning is given.
 
 When \code{"na.omit = FALSE"} an additional level \code{"NA"} is added to each factor with missing values.
 If the target contains unused factor levels (e.g. due to subsetting) these are ignored and a warning is given.
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{formula}: method for formulas.
+
+\item \code{data.frame}: method for data frames.
+}}
+
 \examples{
 data <- iris # without optimal binning
 model <- OneR(data, verbose = TRUE)
@@ -45,13 +63,10 @@ model_opt <- OneR(data_opt, verbose = TRUE)
 summary(model_opt)
 
 ## The same with the formula interface:
-data_opt <- optbin(formula = Species ~., data = iris)
+data_opt <- optbin(Species ~., data = iris)
 model_opt <- OneR(data_opt, verbose = TRUE)
 summary(model_opt)
 
-}
-\author{
-Holger von Jouanne-Diedrich
 }
 \references{
 \url{https://github.com/vonjd/OneR}
@@ -59,7 +74,9 @@ Holger von Jouanne-Diedrich
 \seealso{
 \code{\link{OneR}}, \code{\link{bin}}
 }
+\author{
+Holger von Jouanne-Diedrich
+}
 \keyword{binning}
 \keyword{discretization}
 \keyword{discretize}
-

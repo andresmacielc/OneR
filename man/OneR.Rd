@@ -2,19 +2,30 @@
 % Please edit documentation in R/OneR_main.R
 \name{OneR}
 \alias{OneR}
+\alias{OneR.formula}
+\alias{OneR.data.frame}
 \title{One Rule function}
 \usage{
-OneR(data, formula = NULL, ties.method = c("first", "chisq"),
-  verbose = FALSE)
+OneR(x, ...)
+
+\method{OneR}{formula}(formula, data, ties.method = c("first", "chisq"),
+  verbose = FALSE, ...)
+
+\method{OneR}{data.frame}(x, ties.method = c("first", "chisq"),
+  verbose = FALSE, ...)
 }
 \arguments{
-\item{data}{dataframe, which contains the data. When \code{formula = NULL} (the default) the last column must be the target variable.}
+\item{x}{data frame with the last column containing the target variable.}
 
-\item{formula}{formula interface for the \code{OneR} function.}
+\item{...}{arguments passed to or from other methods.}
+
+\item{formula}{formula, additionally the argument \code{data} is needed.}
+
+\item{data}{data frame which contains the data, only needed when using the formula interface.}
 
 \item{ties.method}{character string specifying how ties are treated, see 'Details'; can be abbreviated.}
 
-\item{verbose}{If \code{TRUE} prints rank, names and predictive accuracy of the attributes in decreasing order (with \code{ties.method = "first"}).}
+\item{verbose}{if \code{TRUE} prints rank, names and predictive accuracy of the attributes in decreasing order (with \code{ties.method = "first"}).}
 }
 \value{
 Returns an object of class "OneR". Internally this is a list consisting of the function call with the specified arguments, the names of the target and feature variables,
@@ -32,6 +43,13 @@ If data contains unused factor levels (e.g. due to subsetting) these are ignored
 When there is more than one attribute with best performance either the first (from left to right) is being chosen (method \code{"first"}) or
 the one with the lowest p-value of a chi-squared test (method \code{"chisq"}).
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{formula}: method for formulas.
+
+\item \code{data.frame}: method for data frames.
+}}
+
 \examples{
 data <- optbin(iris)
 model <- OneR(data, verbose = TRUE)
@@ -42,14 +60,11 @@ eval_model(prediction, data)
 
 ## The same with the formula interface:
 data <- optbin(iris)
-model <- OneR(formula = Species ~., data = data, verbose = TRUE)
+model <- OneR(Species ~., data = data, verbose = TRUE)
 summary(model)
 plot(model)
 prediction <- predict(model, data)
 eval_model(prediction, data)
-}
-\author{
-Holger von Jouanne-Diedrich
 }
 \references{
 \url{https://github.com/vonjd/OneR}
@@ -57,8 +72,10 @@ Holger von Jouanne-Diedrich
 \seealso{
 \code{\link{bin}}, \code{\link{optbin}}, \code{\link{eval_model}}, \code{\link{maxlevels}}
 }
+\author{
+Holger von Jouanne-Diedrich
+}
 \keyword{1R}
 \keyword{One}
 \keyword{OneR}
 \keyword{Rule}
-
